@@ -8,3 +8,6 @@ trait Transaction
 trait ReadTransaction extends Transaction
 
 trait ReadWriteTransaction extends ReadTransaction
+
+// ReadTransaction <: ReadWriteTransaction
+// ReadWriteTransaction :> ReadTransaction

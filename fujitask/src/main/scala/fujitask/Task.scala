@@ -15,8 +15,10 @@ import scala.concurrent.Future
   * [Monadic Approach To Transaction]
   * A `Task` object represents a transaction.
   * A Task has a computation to gain a value (whose type is `A`.)
-  * The `foldMap` method binds those computations to be executed in an order,
+  * The `flatMap`(>>=/bind) method binds those computations to be executed in an order,
   * and the `run` method executes them all as a transaction, just like Reader Monad.
+  *
+  *   trait Task[-Resource, +A] { self =>
   *
   * This implements PofEAA's "Unit of Work":
   * http://martinfowler.com/eaaCatalog/unitOfWork.html
@@ -32,11 +34,21 @@ import scala.concurrent.Future
   * Each Task is tagged with a transaction type (namely `Resource`)
   * which represents its permission level (cf. whether its query must ask the master or a slave.)
   *
-  * `foldMap` restricts a given monadic function's transaction type to be
-  * equivalent or contravariant to its own Task's transaction type.
-  * So, if the "Read/Write" transaction type is set to be a subtype of the "Read",
-  * `foldMap` reproduces a "Read/Write" task when a "Read" task is bounded to a "Read/Write" task.
-  * Thus the above problem, accidentally asking a slave to modify the database, is prevented at compile time.
+  *   trait Task[-Resource, +A] { self =>
+  *
+  * `execute` implements the Task's task using the specified permission level.
+  * This reduces an accidental misdefinition of tasks and premission levels.
+  *
+  * `flatMap` restricts a given monadic function's permission level to be variant to its own Task's.
+  * So, if "Read/Write" is set to be a subtype of the "Read",
+  * `foldMap` of a "Read" Task given a "Read/Write" monadic function reproduces a "Read/Write" Task.
+  * Thus a transaction that writes a database is always sent to the master database.
+  * Hense if a whole transaction is just to read a database, it will be sent to a slave database.
+  *
+  *    def flatMap[ExtendedResource <: Resource, B](f: A => Task[ExtendedResource, B]): Task[ExtendedResource, B] =
+  *
+  * I honestly don't know why "Read" after "Read/Write" has to be a compile error.
+  * I feel like it should become "Read/Write" as well as "Read/Write" after "Read".
   *
   * `Transaction.scala` defines a "Read/Write" transaction type inheriting "Read",
   * and it is expected to be useful in case of a master/slave database.
@@ -76,7 +88,7 @@ trait Task[-Resource, +A] { self =>
     * @tparam ExtendedResource determines the type of transaction.
     */
   def run[ExtendedResource <: Resource]()(implicit runner: TaskRunner[ExtendedResource]): Future[A] = {
-    runner.run(this)
+    runner.run(self)
   }
 }
 
